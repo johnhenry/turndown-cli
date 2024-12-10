@@ -1,0 +1,14 @@
+{
+  "plugins": [
+    {
+      "name": "plugin-name",
+      "version": "1.0.0",
+      "path": "node_modules/plugin-name"
+    },
+    {
+      "name": "another-plugin",
+      "version": "2.1.0",
+      "path": "node_modules/another-plugin"
+    }
+  ]
+}

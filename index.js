@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const Minimist = require('minimist');
 const TurndownService = require('turndown');
+const { execSync } = require('child_process');
 
 function serialize(list) {
     let output = [];
@@ -41,6 +42,86 @@ async function fetchContentFromUrl(url, playwright) {
     return content;
 }
 
+function readPluginsConfig() {
+    const configPath = path.join(__dirname, 'plugins.json');
+    if (fs.existsSync(configPath)) {
+        const configFile = fs.readFileSync(configPath, 'utf8');
+        return JSON.parse(configFile);
+    }
+    return { plugins: [] };
+}
+
+function writePluginsConfig(config) {
+    const configPath = path.join(__dirname, 'plugins.json');
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+}
+
+function installPlugin(pluginName) {
+    const config = readPluginsConfig();
+    const existingPlugin = config.plugins.find(plugin => plugin.name === pluginName);
+
+    if (existingPlugin) {
+        console.log(`Plugin "${pluginName}" is already installed.`);
+        const latestVersion = execSync(`npm show ${pluginName} version`).toString().trim();
+        if (existingPlugin.version !== latestVersion) {
+            console.log(`Updating plugin "${pluginName}" to version ${latestVersion}...`);
+            execSync(`npm install ${pluginName}@latest`);
+            existingPlugin.version = latestVersion;
+            existingPlugin.path = `node_modules/${pluginName}`;
+            writePluginsConfig(config);
+            console.log(`Plugin "${pluginName}" updated to version ${latestVersion}.`);
+        } else {
+            console.log(`Plugin "${pluginName}" is already up-to-date.`);
+        }
+    } else {
+        console.log(`Installing plugin "${pluginName}"...`);
+        execSync(`npm install ${pluginName}`);
+        const pluginVersion = execSync(`npm show ${pluginName} version`).toString().trim();
+        config.plugins.push({
+            name: pluginName,
+            version: pluginVersion,
+            path: `node_modules/${pluginName}`
+        });
+        writePluginsConfig(config);
+        console.log(`Plugin "${pluginName}" installed successfully.`);
+    }
+}
+
+function listPlugins() {
+    const config = readPluginsConfig();
+    if (config.plugins.length === 0) {
+        console.log('No plugins installed.');
+    } else {
+        console.log('Installed plugins:');
+        config.plugins.forEach(plugin => {
+            console.log(`- ${plugin.name} (version: ${plugin.version}, path: ${plugin.path})`);
+        });
+    }
+}
+
+function removePlugin(pluginName) {
+    const config = readPluginsConfig();
+    const pluginIndex = config.plugins.findIndex(plugin => plugin.name === pluginName);
+
+    if (pluginIndex !== -1) {
+        console.log(`Removing plugin "${pluginName}"...`);
+        execSync(`npm uninstall ${pluginName}`);
+        config.plugins.splice(pluginIndex, 1);
+        writePluginsConfig(config);
+        console.log(`Plugin "${pluginName}" removed successfully.`);
+    } else {
+        console.log(`Plugin "${pluginName}" is not installed.`);
+    }
+}
+
+function loadPlugins(turndownService) {
+    const config = readPluginsConfig();
+    config.plugins.forEach(plugin => {
+        const pluginModule = require(plugin.path);
+        turndownService.use(pluginModule);
+    });
+}
+
 var argv = Minimist(process.argv.slice(2));
 
 if (argv.h || argv.help) {
@@ -49,6 +130,9 @@ Usages:
   turndown-cli (-h|-v)
   turndown-cli <source> (<target>)
   turndown-cli (<option>=<choice>) <source> (<target>)
+  turndown-cli --install <plugin-name>
+  turndown-cli --list
+  turndown-cli --remove <plugin-name>
 
 Parameters:
   source    HTML source filepath
@@ -81,6 +165,9 @@ Options:
                   ${serialize(Options.preformattedCode)}
   -m --remote     Enable remote fetching
   -w --raw        Save raw HTML content
+  --install       Install a plugin
+  --list          List all installed plugins
+  --remove        Remove a plugin
 
 Note that the first choice is default for each options.
 
@@ -91,6 +178,9 @@ Examples:
   turndown-cli -t=2 -r=3 -c=2 -f=1 -s=2 sample.html
   turndown-cli -m http://www.example.com
   turndown-cli -mw http://www.example.com
+  turndown-cli --install plugin-name
+  turndown-cli --list
+  turndown-cli --remove plugin-name
     `);
 } else if (argv.v || argv.version) {
     console.log(`
@@ -99,6 +189,12 @@ Version ${appVersion}
 Copyright (c) ${copyrightYear} Abhishek Kumar
 Licensed under MIT License
     `);
+} else if (argv.install) {
+    installPlugin(argv.install);
+} else if (argv.list) {
+    listPlugins();
+} else if (argv.remove) {
+    removePlugin(argv.remove);
 } else {
     var sourcePath = argv._[0];
     if (!!sourcePath) {
@@ -122,6 +218,7 @@ Licensed under MIT License
                         });
                     } else {
                         var turndownService = new TurndownService();
+                        loadPlugins(turndownService);
                         var markdown = turndownService.turndown(content);
                         let targetFilename = path.basename(sourcePath, path.extname(sourcePath)) + '.md';
                         var defaultTargetPath = path.join(process.cwd(), targetFilename);
@@ -219,6 +316,7 @@ Licensed under MIT License
                 }
 
                 var turndownService = new TurndownService(options);
+                loadPlugins(turndownService);
 
                 fs.readFile(sourcePath, 'utf8', (err, data) => {
                     if (err) {
@@ -323,6 +421,7 @@ Licensed under MIT License
             }
 
             var turndownService = new TurndownService(options);
+            loadPlugins(turndownService);
 
             fs.readFile(sourcePath, 'utf8', (err, data) => {
                 if (err) {

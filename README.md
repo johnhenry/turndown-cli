@@ -24,6 +24,9 @@ Usages:
   turndown-cli (-h|-v)
   turndown-cli <source> (<target>)
   turndown-cli (<option>=<choice>) <source> (<target>)
+  turndown-cli --install <plugin-name>
+  turndown-cli --list
+  turndown-cli --remove <plugin-name>
 
 Parameters:
   source    HTML source filepath
@@ -32,6 +35,8 @@ Parameters:
   choice    Any choice out of provided choices
 
 Options:
+  -h --help       Show help contents
+  -v --version    Show version information
   -t --head       Heading style
                   1) setext    2) atx
   -r --hr         Horizontal rule
@@ -52,6 +57,11 @@ Options:
                   1) full    2) collapsed    3) shortcut
   -p --pre        Preformatted code
                   1) false    2) true
+  -m --remote     Enable remote fetching
+  -w --raw        Save raw HTML content
+  --install       Install a plugin
+  --list          List all installed plugins
+  --remove        Remove a plugin
 
 Note that the first choice is default for each options.
 
@@ -60,6 +70,9 @@ Examples:
   turndown-cli sample.html
   turndown-cli sample.html sample.md
   turndown-cli -t=2 -r=3 -c=2 -f=1 -s=2 sample.html
-
-
+  turndown-cli -m http://www.example.com
+  turndown-cli -mw http://www.example.com
+  turndown-cli --install plugin-name
+  turndown-cli --list
+  turndown-cli --remove plugin-name
 ```
